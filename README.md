@@ -1,12 +1,92 @@
 # Purpose
 
-This is a custom bootloader for the Commander X16 ATTiny861 based System Management Controller (SMC).
+A custom bootloader for the Commander X16 ATtiny861 based System Management Controller (SMC).
 
-The purpose of the bootloader is to make it possible to update the SMC firmware from the Commander X16 without using an external programmer.
+The bootloader makes it possible to update the SMC firmware from the Commander X16 without an external programmer.
 
-Firmware data is transmitted from the computer to the SMC over I2C.
 
 # How it works
+
+## Firmware update process
+
+A firmware update program runs on the X16 and sends the new SMC firmware to
+the bootloader over I2C. 
+
+The bootloader is responsible for checking the integrity of the transmitted data 
+and for writing it to the flash memory of the SMC.
+
+The transmission is divided into packets of nine bytes. A packets begins with
+eight firmware bytes. The last byte is a checksum. The checksum is the 
+2's complement of the sum of the previous eight bytes in the packet. I2C command 
+offset 0x80 is used to transmit each byte of a packet.
+
+A complete packet must committed using I2C command offset 0x81 before transmission
+of the next packet is started.
+
+The update process continues by transmitting and committing packets until the whole
+firmware has been received by the bootloader.
+
+The update program running on the X16 can optionally rewind the target address
+to 0 using command 0x84 and use command 0x85 to read one byte at a time from
+the SMC flash memory. The update program can use these functions to verify
+the update.
+
+Finally, the update program must use command 0x82 to reset the SMC. This will
+write any buffered data to flash memory and then turn off the computer.
+
+The SMC can only update the flash memory in whole pages of 64 bytes. The committed
+bytes are buffered until there is a full page that can be written to flash memory.
+
+On receiving the first full page (address 0x0000-0x003f), the bootloader takes
+these special actions:
+
+- Erasing the firmware area of the flash memory (address 0x0000-0x1dff)
+
+- Moving the firmware's reset vector (address 0x0000) to EE_RDY (address 0x0012)
+
+- Pointing the reset vector to the bootloader main vector (address 0x1e00)
+
+The reason for this is explained in the SMC reset process below.
+
+
+## SMC reset process
+
+The SMC is reset when first connecting it to power or when 
+reset pin #10 is grounded.  On reset, execution always starts at the reset vector (address 0x0000).
+
+When the bootloader is installed, the reset vector always jumps to the bootloader main vector (address 0x1e00), 
+as described above.
+
+The bootloader main function checks if the Reset button is being pressed. 
+If the button is pressed, the computer is powered on and the 
+update process is started.
+
+If the Reset button is not pressed, the bootloader jumps to
+the EE_RDY vector (address 0x0012). The firmware's original
+reset vector is moved here during the update process, as described above.
+
+
+## Fail safe
+
+The bootloader was designed to be as fail safe as possible:
+
+- Firmware erase starts from the last page and ends with the
+first page. If the update process is aborted during the erase
+stage before the first page has been erased, the reset vector
+is still unchanged. The recovery process update process can
+be started by holding down the Reset button when connecting
+power to the computer.
+
+- If the update process fails after all pages have been
+erased but before any new data has been written to flash memory,
+execution will still end up at bootloader main vector, as 
+erased firmware (value 0xff) is interpreted as NOPs.
+
+- If the the update process fails after writing new data
+to the first page, the reset vector will jump to the
+bootloader main vector making it possible to do a
+recovery update by holding down the Reset button.
+
 
 ## SMC memory map
 
@@ -18,77 +98,16 @@ Firmware data is transmitted from the computer to the SMC over I2C.
 | 0x1E00-0x1FFF | 512 bytes   | Bootloader area            |
 | 0x1E00        | 2 bytes     | Bootloader main vector     |
 | 0x1E02        | 2 bytes     | Start update vector        |
-| 0x1FFE        | 2 bytes     | Bootloader version         |    
-
-
-## SMC reset procedure
-
-On SMC reset the reset vector at address 0x0000 is always executed.
-This happens both when mains power is connected to the computer
-and when the SMC reset pin #10 is grounded.
-
-When the bootloader is installed, the reset vector is 
-remapped and always jumps to the bootloader main vector (0x1E00).
-
-The bootloader main function checks if the Reset button is being pressed. 
-If the button is pressed, the computer is powered on and the 
-bootloader's firmware update process is started.
-
-If the Reset button was not pressed, the bootloader jumps to
-the vector stored in EE_RDY (0x0012). The firmware's original
-reset vector is always moved to this address when updating
-the firmware.
-
-
-## Firmware update procedure
-
-The update procedure can be started by holding down the Reset 
-button as described [above](#smc-reset-procedure).
-
-The procedure can also be started by requesting the
-firmware to call the start update vector (0x1e02). This is 
-done through the I2C command 0x8F (Start bootloader).
-
-While the update procedure is active, firmware data 
-is transmitted from the CPU to the SMC over I2C as
-follows:
-
-- 8 bytes plus 1 checksum byte are transmitted
-using the 0x80 I2C command (Transmit).
-
-- The transmitted bytes are committed with
-the 0x81 I2C command (Commit).
-
-- Transmitting and committing data is
-repeated for the rest of the firmware.
-
-- The flash memory is updated in pages of 64 bytes (pages). On every
-8th commit, firmware data will actually be written to flash
-memory.
-
-- Just before writing the first flash memory page, all of
-the firmware flash area is erased, starting from the last page.
-
-- Finally, the update program is expected to call
-the 0x82 I2C command (Reboot) to reset the SMC and power
-off the system. This will also write
-any remaining data to flash memory.
-
-If the update procedure was started by holding down
-the Reset button, the system has no keyboard or mouse
-connection. SMCUPDATE-x.x.x.PRG needs to stored as AUTOBOOT.X16
-on the SD card so that it is automatically loaded and run.
+| 0x1FFE        | 2 bytes     | Bootloader version         |   
 
 
 # Building the project
 
-The firmware hex file (x16-smc.ino.hex) is expected to be found at x16-smc/build. You need
-to build or download the firmware and store it there. The firmware is
-typically built with the Arduino IDE.
-
 Type ```make``` to build the bootloader.
 
 Build dependencies:
+
+- make
 
 - AVRA assembler https://github.com/Ro5bert/avra
 
@@ -110,8 +129,7 @@ Finally, the extended fuse value must be 0xFE to enable self-programming of the 
 
 # Initial programming of the SMC with avrdude
 
-The initial programming of the SMC must be done with an
-external programmer.
+The initial programming of the SMC is done with an external programmer.
 
 The command line utility avrdude is the recommended tool together
 with a programmer that is compatible with avrdude.
