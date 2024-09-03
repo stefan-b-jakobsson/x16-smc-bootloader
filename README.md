@@ -10,7 +10,12 @@ The bootloader makes it possible to update the SMC firmware from the Commander X
 ## Firmware Update Process
 
 A firmware update program runs on the X16 and sends the new SMC firmware to
-the bootloader over I2C. 
+the bootloader over I2C.
+
+The update process is started either by requesting the firmware to call
+the bootloader's start update function or by holding down the Reset button
+while connecting the computer to power. The latter is called a recovery
+update. Read more about that below.
 
 The bootloader is responsible for checking the integrity of the transmitted data 
 and for writing it to the flash memory of the SMC.
