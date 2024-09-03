@@ -53,7 +53,7 @@ these special actions:
 The reason for this is explained in the SMC reset process below.
 
 
-## SMC Reset Process and Starting the Bootloader Recocvery Update
+## SMC Reset Process and Starting the Bootloader Recovery Update
 
 The SMC is reset when first connecting it to power or when 
 the reset pin (#10) is grounded. On reset, execution always starts from the reset 
@@ -72,7 +72,7 @@ If the button is pressed, the computer is powered on and the
 update process is started. 
 
 The update process is usually started by the update program that runs
-on the X16 by requesting the firmware to call bootloader address
+on the X16 requesting the firmware to call bootloader address
 0x1e02. Starting the process by holding down the Reset button 
 is primarily intended for recovery of an inoperable (bricked)
 SMC.
@@ -89,7 +89,7 @@ The fail-safe was designed especially with these situations in mind:
 - Update process interrupted during the firmware erase stage: Firmware
 erase starts from the last page. If interrupted during this stage,
 the reset vector at address 0x0000 is still unchanged, and a
-recovery update can be started.
+recovery update is possible.
 
 - Update process interrupted after the whole firmware has been erased but
 before writing any parts of the new firmware to flash memory: When
@@ -175,7 +175,7 @@ The -U option performs a memory operation. "-U flash:w:filename:i" writes to fla
 
 Please note that some fuse settings may cause the ATtiny861 not to respond. Resetting might require equipment for high voltage programming. Be careful if you choose not to use the recommended values.
 
-The Arduino IDE also uses avrdude in the background. If you have installed the IDE can use it to program the SMC, you may enable verbose output and see what parameters are used by the IDE when it starts avrdude.
+The Arduino IDE also uses avrdude in the background. If you have installed the IDE you may enable verbose output and see what parameters are used by the IDE when it starts avrdude.
 
 
 # I2C API
@@ -204,7 +204,7 @@ Value | Description
 4     | Reserved
 5     | Error, overwriting bootloader section
 
-The firmware flash memory are will be erased on the 8th successful commit, just before writing the first 64 bytes to flash memory.
+The firmware flash memory is erased on the 8th successful commit, just before writing the first 64 bytes to flash memory.
 
 ## Command 0x82 = Reboot (master write)
 
