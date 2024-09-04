@@ -1,31 +1,32 @@
 # Purpose
 
-A custom bootloader for the Commander X16 ATtiny861 based System Management Controller (SMC).
+This project provides a custom bootloader for the Commander X16's ATtiny861-based System Management Controller (SMC). 
 
-The bootloader makes it possible to update the SMC firmware from the Commander X16 without an external programmer.
+The bootloader enables updating the SMC firmware directly from the Commander X16 without an external programmer.
 
 
 # How It Works
 
 ## Firmware Update Process
 
-The update process is started either by requesting the firmware to call
-the bootloader's start update function or by holding down the Reset button
-while connecting the computer to power. The latter is called a recovery
-update. Read more about that below.
+### Starting the Update Process
 
-A firmware update program runs on the X16 and sends the new SMC firmware to
-the bootloader over I2C.
+The firmware update process can be initiated in one of two ways:
 
-The bootloader is responsible for checking the integrity of the transmitted data 
-and for writing it to the flash memory of the SMC.
+1. Normal Update: By requesting the firmware to call the bootloader’s start update function (address 0x1e02).
+
+2. Recovery Update: By holding down the Reset button while powering on the computer.
+
+A firmware update program running on the Commander X16 transmits the new SMC firmware to the bootloader via I2C. 
+The bootloader checks the integrity of the data and writes it to the SMC's flash memory.
+
+### Transmission Details
 
 The transmission is divided into packets of nine bytes. A packet begins with
-eight firmware bytes. The last byte is a checksum, the 
-2's complement of the sum of the previous eight bytes in the packet. I2C command 
+eight firmware bytes. The last byte is a checksum. I2C command 
 offset 0x80 is used to transmit each byte of a packet.
 
-A complete packet must committed using I2C command offset 0x81 before transmission
+A complete packet must be committed using I2C command offset 0x81 before transmission
 of the next packet is started.
 
 The update process continues by transmitting and committing packets until the whole
@@ -38,8 +39,10 @@ the SMC flash memory. This can be used to verify the update.
 Finally, the update program must use command 0x82 to reset the SMC. This will
 write any remaining buffered data to flash memory and then turn off the computer.
 
+### Flash Pages, Special Actions when Updating the First Page
+
 The SMC can only update the flash memory in whole pages of 64 bytes. The committed
-bytes are buffered until there is a full page that can be written to flash memory.
+packets are buffered until there is a full page that can be written to flash memory.
 
 On receiving the first full page (address 0x0000-0x003f), the bootloader takes
 these special actions:
@@ -53,29 +56,29 @@ these special actions:
 The reason for this is explained in the SMC reset process below.
 
 
-## SMC Reset Process and Starting the Bootloader Recovery Update
+## SMC Reset Process
 
 The SMC is reset when first connecting it to power or when 
-the reset pin (#10) is grounded. On reset, execution always starts from the reset 
+the reset pin (#10) is grounded. On reset, execution starts from the reset 
 vector (address 0x0000).
 
-When the bootloader is installed, the reset vector is set to jump to the bootloader main 
-function (address 0x1e00), as described above.
+When the bootloader is installed, the reset vector is set to always jump to 
+the bootloader main function (address 0x1e00).
 
 The bootloader main function checks if the Reset button is being pressed.
 
 If the Reset button is not pressed, the bootloader jumps to
 the EE_RDY vector (address 0x0012). The firmware's original
-reset vector is moved here during the update process, as described above.
+reset vector is moved here during the update process. Jumping to
+EE_RDY thus starts the firmware and continues normal operation.
 
 If the button is pressed, the computer is powered on and the 
-update process is started. 
-
-The update process is usually started by the update program that runs
-on the X16 requesting the firmware to call bootloader address
-0x1e02. Starting the process by holding down the Reset button 
-is primarily intended for recovery of an inoperable (bricked)
-SMC.
+recovery update process is started. The computer has no keyboard
+support during the recovery update. The update program that runs
+on the X16 is typically stored as AUTOBOOT.X16 so that it
+autoloads and runs when powering on the system. The update program
+must also be able to carry out the update without keyboard
+without interaction from the user.
 
 
 ## Fail-Safe
@@ -86,12 +89,12 @@ the firmware is inoperable (bricked).
 
 The fail-safe was designed especially with these situations in mind:
 
-- Update process interrupted during the firmware erase stage: Firmware
+1. Update process interrupted during the firmware erase stage: Firmware
 erase starts from the last page. If interrupted during this stage,
 the reset vector at address 0x0000 is still unchanged, and a
 recovery update is possible.
 
-- Update process interrupted after the whole firmware has been erased but
+2. Update process interrupted after the whole firmware has been erased but
 before writing any parts of the new firmware to flash memory: When
 erasing the flash memory all words are set to byte value 0xffff, 
 which is interpreted as No Operation (NOP) by the SMC hardware. Execution
@@ -99,7 +102,7 @@ starts from the reset vector at 0x0000 and continues until
 the first non NOP instruction at 0x1e00, the bootloader main function.
 This makes it possible to start the recovery update in this situation.
 
-- Update process interrupted after writing parts of the new
+3. Update process interrupted after writing parts of the new
 firmware to flash memory: The first page written to flash memory
 holds the reset vector that jumps to the bootloader main function making
 it possible to start the recovery update.
