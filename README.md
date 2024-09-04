@@ -17,10 +17,10 @@ The firmware update process can be initiated in one of two ways:
 
 2. Recovery Update: By holding down the Reset button while powering on the computer.
 
+### Transmission Details
+
 A firmware update program running on the Commander X16 transmits the new SMC firmware to the bootloader via I2C. 
 The bootloader checks the integrity of the data and writes it to the SMC's flash memory.
-
-### Transmission Details
 
 The transmission is divided into packets of nine bytes. A packet begins with
 eight firmware bytes. The last byte is a checksum. I2C command 
@@ -77,8 +77,8 @@ recovery update process is started. The computer has no keyboard
 support during the recovery update. The update program that runs
 on the X16 is typically stored as AUTOBOOT.X16 so that it
 autoloads and runs when powering on the system. The update program
-must also be able to carry out the update without keyboard
-without interaction from the user.
+must also be able to carry out the update without
+interaction from the user.
 
 
 ## Fail-Safe
