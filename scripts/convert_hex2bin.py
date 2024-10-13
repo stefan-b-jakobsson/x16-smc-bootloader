@@ -3,7 +3,6 @@ from intelhex import IntelHex
 # Load HEX file
 bootloader = IntelHex()
 bootloader.fromfile("build/bootloader.hex", format="hex")
-bootloader[0] = 0x8a
 
 # Validate start of bootloader != 0x8a
 #   Before bootloader v3, 0x1e00 was set to the magic value 0x8a to indicate that
